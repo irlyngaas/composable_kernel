@@ -1,3 +1,5 @@
+#include <ATen/ATen.h>
+#include <torch/extension.h>
 
 #include <iostream>
 #include <vector>
@@ -23,12 +25,12 @@ using B1DataType  = ck::half_t;
 using CDataType   = ck::half_t;
 using AccDataType = float;
 
-void fused_attention( const int G0, int G1, const int M, const int N, const int K, const int O, const void *a_device_buf, const void *b0_device_buf, const void *b1_device_buf, void *c_device_buf, const int best_op_id)
-//void fused_attention( const int G0, int G1, const int M, const int N, const int K, const int O, const ck::half_t *a_device_buf, const ck::half_t *b0_device_buf, const ck::half_t *b1_device_buf, ck::half_t *c_device_buf, const int best_op_id)
+void fused_attention( const int G0, int G1, const int M, const int N, const int K, const int O, const torch::Tensor &a_device_buf, const torch::Tensor &b0_device_buf, const torch::Tensor &b1_device_buf, const torch::Tensor &c_device_buf, const int best_op_id)
+
 {
     // A layout [G0, M, G1, K]
     std::vector<ck::index_t> a_gs_ms_ks_lengths{G0, G1, M, K};
-    //std::vector<ck::index_t> a_gs_ms_ks_strides{G1 * M * K, K, G1 * K, 1};
+    //std::vector<ck::index_t> a_gs_ms_ks_strides{G1 * M * K, K, G1*K, 1};
     std::vector<ck::index_t> a_gs_ms_ks_strides{G1 * M * K, M * K, K, 1};
 
     // B0 layout [G0, N, G1, K]
@@ -38,14 +40,22 @@ void fused_attention( const int G0, int G1, const int M, const int N, const int 
 
     // B1 layout [G0, N, G1, O]
     std::vector<ck::index_t> b1_gs_os_ns_lengths{G0, G1, O, N};
-    //std::vector<ck::index_t> b1_gs_os_ns_strides{G1 * N * O, O, 1, G1*O};
-    std::vector<ck::index_t> b1_gs_os_ns_strides{G1 * N * O, N * O, 1, O};
+    //std::vector<ck::index_t> b1_gs_os_ns_strides{G1 * `N * O, O, 1, G1*O};
+    std::vector<ck::index_t> b1_gs_os_ns_strides{G1 * N * O, N * O, 1, O},
 
     // C layout [G0, M, G1, O]
     std::vector<ck::index_t> c_gs_ms_os_lengths{G0, G1, M, O};
+    //std::vector<ck::index_t> c_gs_ms_os_strides{G1 * M * O, O, G1 * O, 1};
     std::vector<ck::index_t> c_gs_ms_os_strides{G1 * M * O, O, G1 * O, 1};
-    //std::vector<ck::index_t> c_gs_ms_os_strides{G1 * M * O, M * O, O, 1};
 
+    auto a_ = a_device_buf.contiguous();
+    auto a = a_.data<at::Half>();
+    auto b0_ = b0_device_buf.contiguous();
+    auto b0 = b0_.data<at::Half>();
+    auto b1_ = b1_device_buf.contiguous();
+    auto b1 = b1_.data<at::Half>();
+    auto c_ = c_device_buf.contiguous();
+    auto c = c_.data<at::Half>();
 
     using DeviceOp =
         ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute<2,
@@ -71,10 +81,10 @@ void fused_attention( const int G0, int G1, const int M, const int N, const int 
 
     {
         auto& op_ptr = op_ptrs[best_op_id];
-        auto argument_ptr = op_ptr->MakeArgumentPointer((const ck::half_t*) a_device_buf,
-                                                        (const ck::half_t*) b0_device_buf,
-                                                        (const ck::half_t*) b1_device_buf,
-                                                        (ck::half_t*) c_device_buf,
+        auto argument_ptr = op_ptr->MakeArgumentPointer((ck::half_t*) a,
+                                                        (ck::half_t*) b0,
+                                                        (ck::half_t*) b1,
+                                                        (ck::half_t*) c,
                                                         {}, // p_acc0_biases
                                                         {}, // p_acc1_biases
                                                         a_gs_ms_ks_lengths,

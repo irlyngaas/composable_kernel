@@ -1,0 +1,3 @@
+#add_library(fused_attention STATIC fused_attention.cpp fused_attention.h)
+add_library(fused_attention_torch STATIC fused_attention_torch.hpp)
+target_link_libraries(fused_attention_torch PRIVATE composable_kernel::device_operations)
