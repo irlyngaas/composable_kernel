@@ -41,7 +41,7 @@ void fused_attention( const int G0, int G1, const int M, const int N, const int 
     // B1 layout [G0, N, G1, O]
     std::vector<ck::index_t> b1_gs_os_ns_lengths{G0, G1, O, N};
     //std::vector<ck::index_t> b1_gs_os_ns_strides{G1 * `N * O, O, 1, G1*O};
-    std::vector<ck::index_t> b1_gs_os_ns_strides{G1 * N * O, N * O, 1, O},
+    std::vector<ck::index_t> b1_gs_os_ns_strides{G1 * N * O, N * O, 1, O};
 
     // C layout [G0, M, G1, O]
     std::vector<ck::index_t> c_gs_ms_os_lengths{G0, G1, M, O};
